@@ -8,20 +8,20 @@ OVN
 What is OVN?
 ---------------------
 
-OVN (Open Virtual Network) is a series of daemons that translates virtual
+OVN (Open Virtual Network) is a series of daemons that translates virtual         OVN是将配置转换为openflow流表并下发。
 network configuration into OpenFlow, and installs them into Open vSwitch.
 It is licensed under the open source Apache 2 license.
 
-OVN provides a higher-layer abstraction then Open vSwitch, working with logical
+OVN provides a higher-layer abstraction then Open vSwitch, working with logical   OVN封装了 LS LR。
 routers and logical switches, rather than flows. OVN is intended to be used by
-cloud management software (CMS). For details about the architecture of OVN, see
-the ovn-architecture manpage. Some high-level features offered by OVN include:
+cloud management software (CMS). For details about the architecture of OVN, see   OVN用在CMS上。
+the ovn-architecture manpage. Some high-level features offered by OVN include:    下面是OVN封装的北向概念。
 
-* Distributed virtual routers
-* Distributed logical switches
-* Access Control Lists
-* DHCP
-* DNS server
+* Distributed virtual routers   `DVR`
+* Distributed logical switches  `DLS`
+* Access Control Lists          `ACL`
+* `DHCP`
+* `DNS` server
 
 Like Open vSwitch, OVN is written in platform-independent C. OVN runs entirely
 in userspace and therefore requires no kernel modules to be installed.
@@ -34,16 +34,16 @@ need to be completed.
 What's here?
 ------------
 
-The main components of this distribution are:
+The main components of this distribution are:                                   OVN主要的组件：
 
-- ovn-northd, a centralized daemon that translates northbound configuration
+- `ovn-northd`, a centralized daemon that translates northbound configuration
   from a CMS into logical flows for the southbound database.
-- ovn-controller, a daemon that runs on every hypervisor in the cluster. It
+- `ovn-controller`, a daemon that runs on every hypervisor in the cluster. It
   translates the logical flows in the southbound database into OpenFlow for
   Open vSwitch. It also handles certain traffic, such as DHCP and DNS.
-- ovn-nbctl, a tool for interfacing with the northbound database.
-- ovn-sbctl, a tool for interfacing with the southbound database.
-- ovn-trace, a debugging utility that allows for tracing of packets through
+- `ovn-nbctl`, a tool for interfacing with the northbound database.
+- `ovn-sbctl`, a tool for interfacing with the southbound database.
+- `ovn-trace`, a debugging utility that allows for tracing of packets through
   the logical network.
 - Scripts and specs for building RPMs.
 

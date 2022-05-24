@@ -13,6 +13,10 @@
     Services such as DHCP are also desirable features.  Just like OVS, OVN's
     design goal is to have a production-quality implementation that can operate
     at significant scale.
+    <!--
+        OVN，目标是对计算虚拟化、容器虚拟化环境中的VPC网络的SDN，做统一解决方案。
+        OVN封装了L2、L3逻辑网络（overlay方式），和安全组，同时还提供其他一些服务，例如DHCP、ARP proxy等。
+    -->
   </p>
 
   <p>
@@ -28,6 +32,10 @@
     are part of a logical network can migrate from one physical machine to
     another without network disruption.  See <code>Logical Networks</code>,
     below, for more information.
+    <!--
+        物理网络，是指网卡、交换机、路由器这些。
+        虚拟网络，拓展了物理网络，进而支持虚拟化、容器化的云场景。具体见下。
+    -->
   </p>
 
   <p>
@@ -38,10 +46,19 @@
     provides multiple forms of <dfn>gateways</dfn> for this purpose.  See
     <code>Gateways</code>, below, for more information.
   </p>
+  <!--
+      overlay的封装方式，能够让VM之间直接通信而无需node参与，这是VPC需要的。
+      但有时VM和容器并不需要物理网络连通（？？？）。
+      所以提供了很多种类的 Gateway 。
+  -->
 
   <p>
     An OVN deployment consists of several components:
   </p>
+  <!--
+      一个OVN部署，包含这些组件。
+      CMS、DB（OVSDB）、hypervisor、gateway（包含vtep的GW）（这俩统称为传输节点，或者叫chassis）。
+  -->
 
   <ul>
     <li>
@@ -224,6 +241,7 @@
 |                               |     |                               |
 +-------------------------------+     +-------------------------------+
   </pre>
+  <!--架构图-->
 
   <h2>Information Flow in OVN</h2>
 
@@ -233,6 +251,14 @@
     <code>ovn-northd</code> via the northbound database.  In turn,
     <code>ovn-northd</code> compiles the configuration into a lower-level form
     and passes it to all of the chassis via the southbound database.
+    <!--
+      信息流程，（从上倒下）
+      CMS发起，调用 OVN/CMS plugin。写入DB的内容是LR、LS的配置。
+        - 代码：
+        - 数据库demo：
+      ovn-northd监听DB，翻译成底层信息，写到 OVN Southbound DB
+      这个 OVN Southbound DB，就是底层网桥、端口、流表的配置
+    -->
   </p>
 
   <p>
@@ -244,6 +270,11 @@
     table is nonempty, it sets <code>up</code> to <code>true</code>, otherwise
     to <code>false</code>.  This allows the CMS to detect when a VM's
     networking has come up.
+    <!--
+      状态信息流程，（从下到上）
+      目前OVN只支持几种状态信息：
+        - Logical_Switch_Port 表中的 up 列，用于探测VM的网络是否up
+    -->
   </p>
 
   <p>
@@ -252,6 +283,9 @@
     taken effect.  This feature requires the CMS to participate in a sequence
     number protocol, which works the following way:
   </p>
+  <!--
+    OVN中，也能将上述status信息报告给CMS，两种方式：
+  -->
 
   <ol>
     <li>
@@ -261,6 +295,9 @@
       only necessary if the CMS wants to know when the configuration has been
       realized.)
     </li>
+    <!--
+      CMS下发配置到ovn-northd的时候，使用NB_Global表，使用@nb_cfg++方式
+    -->
 
     <li>
       When <code>ovn-northd</code> updates the southbound database based on a
@@ -270,6 +307,9 @@
       observer monitoring both databases can determine when the southbound
       database is caught up with the northbound.)
     </li>
+    <!--
+      ovn-northd更新southbound database的时候，将 @nb_cfg 拷贝到 @SB_Global 表相应位置。
+    -->
 
     <li>
       After <code>ovn-northd</code> receives confirmation from the southbound
@@ -279,6 +319,10 @@
       another observer can determine when the southbound database is caught up
       without a connection to the southbound database.)
     </li>
+    <!--
+      当 ovn-northd 收到 southbound database server（图中的ovn-controller）提交的配置更改的信息，
+      他用 @sb_cfg 来更新 @NB_Global 中的 @nb_cfg。
+    -->
 
     <li>
       The <code>ovn-controller</code> process on each chassis receives the
@@ -288,6 +332,10 @@
       that the physical flows have been updated, it updates <code>nb_cfg</code>
       in its own <code>Chassis</code> record in the southbound database.
     </li>
+    <!--
+      在每个chassis（node和gateway）上的@ovn-controller，按照传入的 @nb_cfg 更新本地DB，同时更新流表。
+      当OVS中更新完了流表等配置信息，@ovn-controller再将 @nb_cfg 更新到一个新值。
+    -->
 
     <li>
       <code>ovn-northd</code> monitors the <code>nb_cfg</code> column in all of
@@ -297,9 +345,15 @@
       table.  (Thus, the CMS or another observer can determine when all of the
       hypervisors have caught up to the northbound configuration.)
     </li>
+    <!--
+      ovn-northd 监听所有chassis上的 @nb_cfg ，并使用 @NB_Global 中的 @hv_cfg 跟踪这个值。
+    -->
   </ol>
 
   <h2>Chassis Setup</h2>
+  <!--
+    chassis部署
+  -->
 
   <p>
     Each chassis in an OVN deployment must be configured with an Open vSwitch
@@ -309,6 +363,10 @@
     ovn-controller starts, it will be created automatically with the default
     configuration suggested below.  The ports on the integration bridge include:
   </p>
+  <!--
+    初始的时候，每个chassis上必须部署OVS，其中部署 integration bridge ，如果没有则会创建。
+    int网桥上的ports包括：
+  -->
 
   <ul>
     <li>
@@ -316,6 +374,12 @@
       connectivity.  <code>ovn-controller</code> adds, updates, and removes
       these tunnel ports.
     </li>
+    <!--
+      1.vtep端口
+      初始的时候，ovn-controller会给每个chassis建立一个 tunnel ports ，用于连接逻辑网络。
+      例如vtep端口。
+      通常这个网口会在一个单独的网桥上，并连接到 integration bridge 网桥上。
+    -->
 
     <li>
       On a hypervisor, any VIFs that are to be attached to logical networks.
@@ -333,6 +397,13 @@
       VIF.  (This is pre-existing integration work that has already been done
       on hypervisors that support OVS.)
     </li>
+    <!--
+      2. VIF端口，就是VM、容器的端口
+      在hypervisor上，VM通过 VIF 连接到 integration bridge 网桥上，这样VM之间就能通过逻辑网络通信了。
+      对于 rep 口有特殊处理。
+      Documentation/topics/vif-plug-providers/vif-plug-providers.rst
+      Documentation/topics/integration.rst，这里讲述了 OVN logical port 如何映射到 VIF。
+    -->
 
     <li>
       On a gateway, the physical port used for logical network connectivity.
@@ -340,6 +411,12 @@
       <code>ovn-controller</code>.  This can be a patch port to another bridge,
       instead of a physical port, in more sophisticated setups.
     </li>
+    <!--
+      3. 物理端口
+      在gateway上，直接通过物理端口作为逻辑网络的端口。
+      ovn-controller 启动的时候，做这个操作。
+      当然这个物理port也在单独的网桥上，集成到int网桥上。
+    -->
   </ul>
 
   <p>
@@ -350,12 +427,19 @@
     instead be attached to a separate Open vSwitch bridge (they need not be
     attached to any bridge at all, in fact).
   </p>
+  <!--
+    除了上面几种ports，其他ports不能接到int网桥上。
+  -->
 
   <p>
     The integration bridge should be configured as described below.
     The effect of each of these settings is documented in
     <code>ovs-vswitchd.conf.db</code>(5):
   </p>
+  <!--
+    int网桥应该被配置成这样，
+    参考ovs-vswitchd.conf.db
+  -->
 
   <!-- Keep the following in sync with create_br_int() in
        ovn/controller/ovn-controller.c. -->
@@ -366,6 +450,9 @@
       <code>ovn-controller</code> starts up.  See <code>Controller Failure
       Settings</code> in <code>ovs-vsctl</code>(8) for more information.
     </dd>
+    <!--
+      fail-mode=secure 模式
+    -->
 
     <dt><code>other-config:disable-in-band=true</code></dt>
     <dd>
@@ -377,14 +464,23 @@
       that in-band control would ordinarily set up.  Refer to the documentation
       for more information.
     </dd>
+    <!--
+      other-config:disable-in-band=true 模式，因为使用local controller通过unix socket连接
+    -->
   </dl>
 
   <p>
     The customary name for the integration bridge is <code>br-int</code>, but
     another name may be used.
   </p>
+  <!--
+    int网桥的名字一般是 br-int
+  -->
 
   <h2>Logical Networks</h2>
+  <!--
+    逻辑网络
+  -->
 
   <p>
     Logical network concepts in OVN include <dfn>logical switches</dfn> and
@@ -395,6 +491,9 @@
     associated or bound to any physical location, and they are implemented in a
     distributed manner at each hypervisor that participates in OVN.
   </p>
+  <!--
+    逻辑网络 包含 LS、LR。这俩只是逻辑网元，由不同的实现方案。
+  -->
 
   <p>
     <dfn>Logical switch ports</dfn> (LSPs) are points of connectivity into and
@@ -405,6 +504,9 @@
     be associated with a VM that is powered down or suspended.  Such a logical
     port has no location and no connectivity.)
   </p>
+  <!--
+    逻辑网络 包含 LS、LR。这俩只是逻辑网元，由不同的实现方案。
+  -->
 
   <p>
     <dfn>Logical router ports</dfn> (LRPs) are points of connectivity into and
@@ -413,6 +515,11 @@
     to VMs, containers, and other network nodes indirectly, through logical
     switches.
   </p>
+  <!--
+    LRP 是 LR 的端口。
+    LRP 用于连接 LR-LS 或者 LR-LR。
+    只有LS能直接连接 VM、容器、网络 ，LR只能连接LS。
+  -->
 
   <p>
     Logical switches and logical routers have distinct kinds of logical ports,
@@ -420,6 +527,11 @@
     logical router ports.  However, an unqualified ``logical port'' usually
     refers to a logical switch port.
   </p>
+  <!--
+    LRP 是 LR 的端口。
+    LRP 用于连接 LR-LS 或者 LR-LR。
+    只有LS能直接连接 VM、容器、网络 ，LR只能连接LS。
+  -->
 
   <p>
     When a VM sends a packet to a VIF logical switch port, the Open vSwitch
@@ -432,8 +544,18 @@
     node), then that is the time at which the packet is encapsulated for
     physical network transmission and sent.
   </p>
+  <!--
+    这里讲的是DVR的逻辑，
+    当VM发出pkt，进入VIF，然后进入VIF所属的网桥。注意还没进入int-br。
+    在VIF-br上，通过OVS流表，模拟了路由过程，也就是DVR。最终结果是决定进入哪个vtep-br。
+    所以有多少VPC，每个chassis上就要有多少个vtep-br。
+  -->
 
   <h3>Logical Switch Port Types</h3>
+  <!--
+    LSP类型
+    注意这里说的类型是逻辑上的类型，不是网卡的类型。
+  -->
 
   <p>
     OVN supports a number of kinds of logical switch ports.  VIF ports that
@@ -442,17 +564,27 @@
     their <code>type</code>.  This section describes some of the additional
     port types.
   </p>
+  <!--
+    上面的类型是默认类型，此时 @type 字段是空。
+  -->
 
   <p>
     A <code>router</code> logical switch port connects a logical switch to a
     logical router, designating a particular LRP as its peer.
   </p>
+  <!--
+    @type = router 类型。表示这个端口连接的对端是 LRP 。
+  -->
 
   <p>
     A <code>localnet</code> logical switch port bridges a logical switch to a
     physical VLAN.  A logical switch may have one or more <code>localnet</code>
     ports.  Such a logical switch is used in two scenarios:
   </p>
+  <!--
+    @type = localnet 类型。表示这个端口连接的对端是 vlan子网 。
+    这个端口用在两个场景中：
+  -->
 
   <ul>
     <li>
